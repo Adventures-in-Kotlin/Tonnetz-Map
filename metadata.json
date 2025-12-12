@@ -1,0 +1,5 @@
+{
+  "name": "Tonnetz Explorer",
+  "description": "Interactive Tonnetz grid visualization for exploring musical relationships and chords.",
+  "requestFramePermissions": []
+}
