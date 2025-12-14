@@ -12,6 +12,8 @@ export interface GridNode {
   screenY: number;
 }
 
+export type ViewMode = 'notes' | 'chords';
+
 export type ChordType = 
   | 'Major' | 'Minor' | 'Diminished' | 'Augmented' 
   | 'Sus2' | 'Sus4' | 'Maj6' | 'Min6' | 'Add9'

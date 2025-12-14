@@ -3,6 +3,7 @@ import TonnetzGrid from './components/TonnetzGrid';
 import Sidebar from './components/Sidebar';
 import RandomChordGenerator from './components/RandomChordGenerator';
 import { CHORDS, findChordLayout } from './utils/music';
+import { ViewMode } from './types';
 
 interface RootNodeInfo {
   lx: number;
@@ -11,6 +12,16 @@ interface RootNodeInfo {
 }
 
 type Tab = 'tonnetz' | 'generator';
+
+// Offsets for intervals on the Tonnetz (dx: P5 axis, dy: M3 axis)
+const INTERVAL_OFFSETS: Record<string, {dx: number, dy: number}> = {
+  '5th': { dx: 1, dy: 0 },      // +7 semitones
+  '4th': { dx: -1, dy: 0 },     // -7 (+5) semitones
+  'Maj 3rd': { dx: 0, dy: 1 },  // +4 semitones
+  'Min 3rd': { dx: 1, dy: -1 }, // +7 -4 = +3 semitones
+  'Maj 2nd': { dx: 2, dy: 0 },  // +14 = +2 semitones
+  'Min 2nd': { dx: -1, dy: 2 }  // -7 + 8 = +1 semitone
+};
 
 const App: React.FC = () => {
   // Navigation State
@@ -21,6 +32,10 @@ const App: React.FC = () => {
   const [rootNode, setRootNode] = useState<RootNodeInfo | null>(null);
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [viewMode, setViewMode] = useState<ViewMode>('notes');
+  
+  // Track the ID of the last chord explicitly clicked or generated
+  const [lastSelectedChordId, setLastSelectedChordId] = useState<string | null>(null);
 
   // Tonnetz Handlers
   const handleZoomIn = useCallback(() => {
@@ -30,6 +45,18 @@ const App: React.FC = () => {
   const handleZoomOut = useCallback(() => {
     setZoomLevel(prev => Math.max(prev - 0.1, 0.4));
   }, []);
+
+  // Handle switching between Notes and Chords view
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    if (mode === viewMode) return;
+    
+    // Clear all selections when switching modes
+    setActiveNodeIds(new Set());
+    setRootNode(null);
+    setSelectedChord(null);
+    setLastSelectedChordId(null);
+    setViewMode(mode);
+  }, [viewMode]);
 
   const handleNoteClick = useCallback((noteIndex: number, lx: number, ly: number) => {
     setRootNode({ noteIndex, lx, ly });
@@ -52,6 +79,22 @@ const App: React.FC = () => {
     }
   }, [selectedChord]);
 
+  const handleChordClick = useCallback((chordId: string) => {
+    setActiveNodeIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(chordId)) {
+        newSet.delete(chordId);
+        // If we deselect the last selected, we don't necessarily clear lastSelectedChordId
+        // to allow re-selecting neighbors from "memory", or we could clear it.
+        // For now, keep it to allow toggling off then finding neighbors.
+      } else {
+        newSet.add(chordId);
+        setLastSelectedChordId(chordId);
+      }
+      return newSet;
+    });
+  }, []);
+
   const handleChordSelect = useCallback((chordType: string) => {
     if (!rootNode) return;
     const intervals = CHORDS[chordType].intervals;
@@ -62,10 +105,40 @@ const App: React.FC = () => {
     setSelectedChord(chordType);
   }, [rootNode]);
 
+  const handleTranspose = useCallback((intervalName: string) => {
+    if (!lastSelectedChordId) return;
+
+    // Parse current ID: "type:lx,ly" (e.g., "M:0,0")
+    const parts = lastSelectedChordId.split(':');
+    if (parts.length !== 2) return;
+    
+    const type = parts[0]; // 'M' or 'm'
+    const coords = parts[1].split(',');
+    const lx = parseInt(coords[0]);
+    const ly = parseInt(coords[1]);
+
+    const offset = INTERVAL_OFFSETS[intervalName];
+    if (!offset) return;
+
+    const newLx = lx + offset.dx;
+    const newLy = ly + offset.dy;
+    
+    const newId = `${type}:${newLx},${newLy}`;
+
+    setActiveNodeIds(prev => {
+      const newSet = new Set(prev);
+      newSet.add(newId);
+      return newSet;
+    });
+    setLastSelectedChordId(newId);
+
+  }, [lastSelectedChordId]);
+
   const handleClear = useCallback(() => {
     setActiveNodeIds(new Set());
     setRootNode(null);
     setSelectedChord(null);
+    setLastSelectedChordId(null);
   }, []);
 
   return (
@@ -120,17 +193,23 @@ const App: React.FC = () => {
               selectedChord={selectedChord}
               onZoomIn={handleZoomIn}
               onZoomOut={handleZoomOut}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              onTranspose={handleTranspose}
+              hasSelectedChord={!!lastSelectedChordId}
             />
             <main className="flex-1 relative h-full">
               <TonnetzGrid 
                   activeNodeIds={activeNodeIds} 
                   rootNodeId={rootNode ? `${rootNode.lx},${rootNode.ly}` : null} 
                   onNoteClick={handleNoteClick} 
+                  onChordClick={handleChordClick}
                   zoomLevel={zoomLevel}
+                  viewMode={viewMode}
               />
               <div className="md:hidden absolute bottom-4 left-0 right-0 text-center pointer-events-none">
                 <span className="text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded">
-                  Tap nodes. Scroll panel for chords.
+                  {viewMode === 'notes' ? 'Tap nodes. Scroll panel for chords.' : 'Tap chords to select.'}
                 </span>
               </div>
             </main>
