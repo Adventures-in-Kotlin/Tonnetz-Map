@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import TonnetzGrid from './components/TonnetzGrid';
 import Sidebar from './components/Sidebar';
 import RandomChordGenerator from './components/RandomChordGenerator';
+import CircleOfFifths from './components/CircleOfFifths';
 import { CHORDS, findChordLayout } from './utils/music';
 import { ViewMode } from './types';
 
@@ -11,7 +12,7 @@ interface RootNodeInfo {
   noteIndex: number;
 }
 
-type Tab = 'tonnetz' | 'generator';
+type Tab = 'tonnetz' | 'generator' | 'circle';
 
 // Offsets for intervals on the Tonnetz (dx: P5 axis, dy: M3 axis)
 const INTERVAL_OFFSETS: Record<string, {dx: number, dy: number}> = {
@@ -84,9 +85,6 @@ const App: React.FC = () => {
       const newSet = new Set(prev);
       if (newSet.has(chordId)) {
         newSet.delete(chordId);
-        // If we deselect the last selected, we don't necessarily clear lastSelectedChordId
-        // to allow re-selecting neighbors from "memory", or we could clear it.
-        // For now, keep it to allow toggling off then finding neighbors.
       } else {
         newSet.add(chordId);
         setLastSelectedChordId(chordId);
@@ -163,7 +161,19 @@ const App: React.FC = () => {
               }
             `}
           >
-            Tonnetz Grid
+            Tonnetz
+          </button>
+          <button
+            onClick={() => setActiveTab('circle')}
+            className={`
+              px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+              ${activeTab === 'circle' 
+                ? 'bg-slate-700 text-white shadow-sm' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }
+            `}
+          >
+            Circle of 5ths
           </button>
           <button
             onClick={() => setActiveTab('generator')}
@@ -175,7 +185,7 @@ const App: React.FC = () => {
               }
             `}
           >
-            Chord Generator
+            Generator
           </button>
         </div>
         
@@ -214,6 +224,8 @@ const App: React.FC = () => {
               </div>
             </main>
           </div>
+        ) : activeTab === 'circle' ? (
+          <CircleOfFifths />
         ) : (
           <div className="h-full overflow-y-auto">
             <RandomChordGenerator />

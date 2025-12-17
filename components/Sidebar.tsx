@@ -15,6 +15,21 @@ interface SidebarProps {
   hasSelectedChord?: boolean;
 }
 
+const CHORD_GROUPS = [
+  {
+    title: 'Triads',
+    keys: ['Major', 'Minor', 'Diminished', 'Augmented', 'Sus2', 'Sus4']
+  },
+  {
+    title: '7th Chords',
+    keys: ['Maj7', 'Min7', 'Dom7', 'HalfDim7', 'Dim7']
+  },
+  {
+    title: 'Extensions & Adds',
+    keys: ['Add9', 'Maj6', 'Min6', 'Maj9', 'Min9', 'Dom9']
+  }
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ 
   onChordSelect, 
   onClear, 
@@ -69,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      <div className="p-6 flex-1 overflow-y-auto">
+      <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
         {viewMode === 'notes' ? (
           <>
             <div className="mb-6">
@@ -86,37 +101,44 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            <div className="mb-6">
-              <h2 className="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-3">
-                Chord Highlights
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.keys(CHORDS).map((chordKey) => {
-                  const isSelected = selectedChord === chordKey;
-                  return (
-                    <button
-                      key={chordKey}
-                      onClick={() => onChordSelect(chordKey)}
-                      disabled={selectedRoot === null}
-                      className={`
-                        w-full text-left px-3 py-2 rounded-md font-medium text-sm transition-all duration-200
-                        flex justify-between items-center
-                        ${selectedRoot === null 
-                          ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
-                          : isSelected
-                            ? 'bg-primary text-white shadow-lg ring-1 ring-white/20'
-                            : 'bg-slate-700 text-slate-200 hover:bg-slate-600 hover:text-white active:bg-primary active:text-white'
-                        }
-                      `}
-                    >
-                      <span className="truncate mr-1">{CHORDS[chordKey].name}</span>
-                      {isSelected && (
-                        <span className="w-2 h-2 rounded-full bg-white shadow-sm flex-shrink-0" title="Active" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="space-y-6">
+              {CHORD_GROUPS.map((group) => (
+                <div key={group.title}>
+                  <h2 className="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-3">
+                    {group.title}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.keys.map((chordKey) => {
+                      const chordDef = CHORDS[chordKey];
+                      if (!chordDef) return null;
+                      
+                      const isSelected = selectedChord === chordKey;
+                      return (
+                        <button
+                          key={chordKey}
+                          onClick={() => onChordSelect(chordKey)}
+                          disabled={selectedRoot === null}
+                          className={`
+                            w-full text-left px-3 py-2 rounded-md font-medium text-sm transition-all duration-200
+                            flex justify-between items-center
+                            ${selectedRoot === null 
+                              ? 'bg-slate-800 text-slate-600 cursor-not-allowed' 
+                              : isSelected
+                                ? 'bg-primary text-white shadow-lg ring-1 ring-white/20'
+                                : 'bg-slate-700 text-slate-200 hover:bg-slate-600 hover:text-white active:bg-primary active:text-white'
+                            }
+                          `}
+                        >
+                          <span className="truncate mr-1">{chordDef.name}</span>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-white shadow-sm flex-shrink-0" title="Active" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         ) : (
