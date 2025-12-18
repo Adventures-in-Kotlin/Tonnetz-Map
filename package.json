@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "tone": "15.0.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

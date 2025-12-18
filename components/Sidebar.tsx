@@ -1,6 +1,7 @@
 import React from 'react';
 import { CHORDS, NOTES } from '../utils/music';
 import { ViewMode } from '../types';
+import { InstrumentType } from '../utils/audio';
 
 interface SidebarProps {
   onChordSelect: (chordType: string) => void;
@@ -13,6 +14,8 @@ interface SidebarProps {
   onViewModeChange: (mode: ViewMode) => void;
   onTranspose?: (interval: string) => void;
   hasSelectedChord?: boolean;
+  instrument: InstrumentType;
+  onInstrumentChange: (type: InstrumentType) => void;
 }
 
 const CHORD_GROUPS = [
@@ -30,6 +33,14 @@ const CHORD_GROUPS = [
   }
 ];
 
+const INSTRUMENTS: { label: string; value: InstrumentType }[] = [
+  { label: 'Simple Synth', value: 'Synth' },
+  { label: 'FM Synth', value: 'FMSynth' },
+  { label: 'AM Synth', value: 'AMSynth' },
+  { label: 'Duo Synth', value: 'DuoSynth' },
+  { label: 'Membrane Synth', value: 'MembraneSynth' },
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ 
   onChordSelect, 
   onClear, 
@@ -40,7 +51,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   viewMode,
   onViewModeChange,
   onTranspose,
-  hasSelectedChord
+  hasSelectedChord,
+  instrument,
+  onInstrumentChange
 }) => {
   const rootName = selectedRoot !== null ? NOTES[selectedRoot].name : '—';
 
@@ -60,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <p className="text-slate-400 text-sm mb-4">Harmonic Lattice</p>
         
         {/* View Mode Toggle */}
-        <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+        <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700 mb-4">
           <button
             onClick={() => onViewModeChange('notes')}
             className={`flex-1 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
@@ -81,6 +94,27 @@ const Sidebar: React.FC<SidebarProps> = ({
           >
             Chords
           </button>
+        </div>
+
+        {/* Instrument Selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest ml-1">Sound Engine</label>
+          <div className="relative">
+            <select
+              value={instrument}
+              onChange={(e) => onInstrumentChange(e.target.value as InstrumentType)}
+              className="w-full appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-primary focus:border-primary p-2.5 pr-8 cursor-pointer hover:bg-slate-700 transition-colors"
+            >
+              {INSTRUMENTS.map((inst) => (
+                <option key={inst.value} value={inst.value}>
+                  {inst.label}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
+               <i className="fas fa-chevron-down text-xs"></i>
+            </div>
+          </div>
         </div>
       </div>
 

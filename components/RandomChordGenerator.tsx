@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { playChord, InstrumentType } from '../utils/audio';
 
 // Type definition for the global Midi object provided by jsmidgen
 declare global {
@@ -53,7 +54,20 @@ const SCALES: Record<string, ScaleCategory> = {
   }
 };
 
-const RandomChordGenerator: React.FC = () => {
+const INSTRUMENTS: { label: string; value: InstrumentType }[] = [
+  { label: 'Simple Synth', value: 'Synth' },
+  { label: 'FM Synth', value: 'FMSynth' },
+  { label: 'AM Synth', value: 'AMSynth' },
+  { label: 'Duo Synth', value: 'DuoSynth' },
+  { label: 'Membrane Synth', value: 'MembraneSynth' },
+];
+
+interface RandomChordGeneratorProps {
+  instrument: InstrumentType;
+  onInstrumentChange: (type: InstrumentType) => void;
+}
+
+const RandomChordGenerator: React.FC<RandomChordGeneratorProps> = ({ instrument, onInstrumentChange }) => {
   // State
   const [selectedNotes, setSelectedNotes] = useState<string[]>([]);
   const [rootNote, setRootNote] = useState<string>('C');
@@ -110,7 +124,7 @@ const RandomChordGenerator: React.FC = () => {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const generateChord = () => {
+  const generateChord = async () => {
     const minChordSize = 3;
     if (selectedNotes.length < minChordSize) {
       showFlashMessage(`Please select at least ${minChordSize} notes.`);
@@ -133,6 +147,7 @@ const RandomChordGenerator: React.FC = () => {
     const newChord = shuffled.slice(0, chordSize);
 
     setCurrentChord(newChord);
+    playChord(newChord);
     
     const chordString = newChord.join(' - ');
     setHistory(prev => [chordString, ...prev].slice(0, 10)); // Keep last 10
@@ -214,6 +229,19 @@ const RandomChordGenerator: React.FC = () => {
         {/* Controls */}
         <div className="flex flex-col gap-6 mb-8">
           <div className="flex flex-wrap justify-center items-center gap-6">
+            
+            {/* Instrument Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-slate-300 font-medium">Sound Engine:</label>
+              <select 
+                value={instrument}
+                onChange={(e) => onInstrumentChange(e.target.value as InstrumentType)}
+                className="p-2 border border-slate-600 rounded-lg bg-slate-800 text-white focus:ring-2 focus:ring-primary focus:outline-none"
+              >
+                {INSTRUMENTS.map(inst => <option key={inst.value} value={inst.value}>{inst.label}</option>)}
+              </select>
+            </div>
+
             {/* Root Note */}
             <div className="flex items-center gap-2">
               <label className="text-slate-300 font-medium">Root:</label>
@@ -392,23 +420,11 @@ const PianoVisualizer: React.FC<{ highlightedNotes: string[] }> = ({ highlighted
         );
         whiteKeyCount++;
       } else {
-        // Calculate position based on previous white keys
-        // A standard octave has 7 white keys. 
-        // 0 (C) -> 1 (D) -> 2 (E) -> 3 (F) -> 4 (G) -> 5 (A) -> 6 (B)
-        // Black keys are after C, D, F, G, A
-        
-        // Current index in white keys for this octave
-        // C# is after 1st white key (0)
-        // D# is after 2nd white key (1)
-        // F# is after 4th white key (3)
-        // G# is after 5th white key (4)
-        // A# is after 6th white key (5)
-        
         const whiteKeyIndexInOctave = i <= 4 ? Math.floor(i/2) : Math.floor((i+1)/2);
         const totalWhiteIndex = (octave * 7) + whiteKeyIndexInOctave;
         
         const leftPercent = ((totalWhiteIndex + 0.5) / (numOctaves * 7)) * 100;
-        const widthPercent = (1 / (numOctaves * 7)) * 100 * 0.8; // Slightly narrower than a white key gap
+        const widthPercent = (1 / (numOctaves * 7)) * 100 * 0.8; 
 
         blackKeys.push(
            <div

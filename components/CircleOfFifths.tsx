@@ -1,9 +1,25 @@
 import React, { useState, useMemo } from 'react';
 import { mod } from '../utils/music';
+import { playChord, InstrumentType } from '../utils/audio';
 
 const MAJORS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
 const MINORS = ['Am', 'Em', 'Bm', 'F#m', 'C#m', 'G#m', 'D#m', 'Bbm', 'Fm', 'Cm', 'Gm', 'Dm'];
 const DIMS = ['Bdim', 'F#dim', 'C#dim', 'G#dim', 'D#dim', 'A#dim', 'Fdim', 'Cdim', 'Gdim', 'Ddim', 'Adim', 'Edim'];
+
+const NOTE_TO_INDEX: Record<string, number> = {
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 
+    'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+};
+
+const CHROMATIC_SCALE_SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+const INSTRUMENTS: { label: string; value: InstrumentType }[] = [
+  { label: 'Simple Synth', value: 'Synth' },
+  { label: 'FM Synth', value: 'FMSynth' },
+  { label: 'AM Synth', value: 'AMSynth' },
+  { label: 'Duo Synth', value: 'DuoSynth' },
+  { label: 'Membrane Synth', value: 'MembraneSynth' },
+];
 
 // Key Signature Data
 const KEY_SIGNATURES = [
@@ -29,22 +45,16 @@ const FLAT_POSITIONS = [40, 10, 50, 20, 60, 30, 70];
 const SHARP_Y_OFFSET = 3;
 const FLAT_Y_OFFSET = -2.5; 
 
-// Base chromatic mapping for calculation
-const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const LETTER_INDICES = [0, 2, 4, 5, 7, 9, 11]; // C=0, D=2, E=4, F=5, G=7, A=9, B=11
 
 // Helpers to generate correct spellings
 const getNoteFromInterval = (rootIndex: number, interval: number, rootLetterIdx: number, stepIndex: number) => {
     const targetIndex = mod(rootIndex + interval, 12);
-    
-    // Determine target letter (Circle of Fifths ensures 7 distinct letters)
     const targetLetterIdx = (rootLetterIdx + stepIndex) % 7;
     const targetLetter = LETTERS[targetLetterIdx];
     const baseIndex = LETTER_INDICES[targetLetterIdx];
 
-    // Calculate accidentals needed to reach targetIndex from baseIndex
-    // We need shortest distance on the circle of 12
     let diff = targetIndex - baseIndex;
     if (diff > 6) diff -= 12;
     if (diff < -6) diff += 12;
@@ -57,57 +67,56 @@ const getNoteFromInterval = (rootIndex: number, interval: number, rootLetterIdx:
 };
 
 const getScaleNotes = (rootName: string, mode: 'Major' | 'Minor') => {
-    // 1. Find Root Index & Root Letter Index
-    // We need to parse the rootName carefully (e.g. "C#", "Bb", "F#")
     let rootBase = rootName.charAt(0);
     let rootAcc = rootName.slice(1);
     
     let rootLetterIdx = LETTERS.indexOf(rootBase);
     let baseVal = LETTER_INDICES[rootLetterIdx];
     
-    // Adjust baseVal for input accidentals
     if (rootAcc === '#') baseVal += 1;
     if (rootAcc === 'b') baseVal -= 1;
     const rootIndex = mod(baseVal, 12);
 
-    // 2. Define Intervals
     const intervals = mode === 'Major' 
         ? [0, 2, 4, 5, 7, 9, 11] 
-        : [0, 2, 3, 5, 7, 8, 10]; // Natural Minor
+        : [0, 2, 3, 5, 7, 8, 10]; 
 
-    // 3. Generate Notes
     return intervals.map((interval, i) => getNoteFromInterval(rootIndex, interval, rootLetterIdx, i));
 };
 
 // Chord Quality Templates
 const CHORD_QUALITIES_MAJOR = [
-    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj11', thi: 'Maj13' },       // I
-    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          // ii
-    { tri: 'm', sev: 'm7', nin: 'm7(b9)', ele: 'm11(b9)', thi: 'm11(b9,b13)' }, // iii (Phrygian)
-    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj9(#11)', thi: 'Maj13(#11)' }, // IV (Lydian)
-    { tri: '', sev: '7', nin: '9', ele: '11', thi: '13' },             // V
-    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm11(b13)' },     // vi (Aeolian)
-    { tri: 'dim', sev: 'm7b5', nin: 'm7b5(b9)', ele: null, thi: null },// vii (Locrian)
+    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj11', thi: 'Maj13' },       
+    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          
+    { tri: 'm', sev: 'm7', nin: 'm7(b9)', ele: 'm11(b9)', thi: 'm11(b9,b13)' }, 
+    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj9(#11)', thi: 'Maj13(#11)' }, 
+    { tri: '', sev: '7', nin: '9', ele: '11', thi: '13' },             
+    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm11(b13)' },     
+    { tri: 'dim', sev: 'm7b5', nin: 'm7b5(b9)', ele: null, thi: null },
 ];
 
 const CHORD_QUALITIES_MINOR = [
-    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          // i
-    { tri: 'dim', sev: 'm7b5', nin: 'm7b5(b9)', ele: null, thi: null },// ii
-    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj11', thi: 'Maj13' },       // III
-    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          // iv
-    { tri: 'm', sev: 'm7', nin: 'm7(b9)', ele: 'm11(b9)', thi: 'm11(b9,b13)' }, // v
-    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj9(#11)', thi: 'Maj13(#11)' }, // VI
-    { tri: '', sev: '7', nin: '9', ele: '11', thi: '13' },             // VII
+    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          
+    { tri: 'dim', sev: 'm7b5', nin: 'm7b5(b9)', ele: null, thi: null },
+    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj11', thi: 'Maj13' },       
+    { tri: 'm', sev: 'm7', nin: 'm9', ele: 'm11', thi: 'm13' },          
+    { tri: 'm', sev: 'm7', nin: 'm7(b9)', ele: 'm11(b9)', thi: 'm11(b9,b13)' }, 
+    { tri: '', sev: 'Maj7', nin: 'Maj9', ele: 'Maj9(#11)', thi: 'Maj13(#11)' }, 
+    { tri: '', sev: '7', nin: '9', ele: '11', thi: '13' },             
 ];
 
-const CircleOfFifths: React.FC = () => {
+interface CircleOfFifthsProps {
+  instrument: InstrumentType;
+  onInstrumentChange: (type: InstrumentType) => void;
+}
+
+const CircleOfFifths: React.FC<CircleOfFifthsProps> = ({ instrument, onInstrumentChange }) => {
   const [rotation, setRotation] = useState(0); 
   const [mode, setMode] = useState<'Major' | 'Minor'>('Major');
 
   const currentIndex = Math.round(mod(-rotation / 30, 12));
   const currentKey = KEY_SIGNATURES[currentIndex];
   
-  // Determine current root name for scale generation
   const currentRootName = mode === 'Major' 
     ? MAJORS[currentIndex] 
     : MINORS[currentIndex].replace('m', '');
@@ -178,6 +187,14 @@ const CircleOfFifths: React.FC = () => {
       if (diff > 180) diff -= 360;
       if (diff < -180) diff += 360;
       setRotation(rotation + diff);
+      
+      // Play Root Chord correctly by using reliable note-to-index map
+      const rootStr = mode === 'Major' ? MAJORS[index] : MINORS[index];
+      const cleanRoot = rootStr.replace('m', '');
+      const rootIdx = NOTE_TO_INDEX[cleanRoot] ?? 0;
+      
+      const intervals = mode === 'Major' ? [0, 4, 7] : [0, 3, 7];
+      playChord(intervals.map(i => CHROMATIC_SCALE_SHARPS[mod(rootIdx + i, 12)]));
   };
 
   const getLabel = (position: string) => {
@@ -214,6 +231,27 @@ const CircleOfFifths: React.FC = () => {
          <h2 className="text-2xl font-bold text-white mb-1">Circle of Fifths</h2>
          <p className="text-slate-400 text-sm mb-6">Key Relationships</p>
          
+         {/* Instrument Selector */}
+         <div className="mb-6">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Sound Engine</label>
+            <div className="relative">
+                <select
+                value={instrument}
+                onChange={(e) => onInstrumentChange(e.target.value as InstrumentType)}
+                className="w-full appearance-none bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-primary focus:border-primary p-2.5 pr-8 cursor-pointer hover:bg-slate-700 transition-colors"
+                >
+                {INSTRUMENTS.map((inst) => (
+                    <option key={inst.value} value={inst.value}>
+                    {inst.label}
+                    </option>
+                ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
+                <i className="fas fa-chevron-down text-xs"></i>
+                </div>
+            </div>
+         </div>
+
          <div className="mb-8">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">Perspective</label>
             <div className="flex flex-col gap-2">
@@ -460,7 +498,7 @@ const CircleOfFifths: React.FC = () => {
                 </div>
                 
                 <div className="text-center mb-6">
-                    <div className="text-3xl font-bold text-white mb-1">
+                    <div className="text-3xl font-bold text-white mb-1" onClick={() => handleWheelClick(currentIndex)} style={{cursor: 'pointer'}}>
                         {mode === 'Major' ? MAJORS[currentIndex] : MINORS[currentIndex]}
                     </div>
                     <div className="text-sm text-slate-400">
@@ -490,7 +528,8 @@ const CircleOfFifths: React.FC = () => {
                            : ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'][i];
 
                        return (
-                           <div key={i} className="bg-slate-800/40 rounded border border-slate-700/50 px-3 py-1.5">
+                           <div key={i} className="bg-slate-800/40 rounded border border-slate-700/50 px-3 py-1.5 cursor-pointer hover:bg-slate-800 transition-colors"
+                                onClick={() => playChord(chord.triadNotes.split(' '))}>
                                {/* Triad Row (with Roman Numeral) */}
                                <div className="flex justify-between items-center mb-0.5 pb-1 border-b border-slate-700/30">
                                    <div className="flex items-center gap-3">
@@ -501,29 +540,29 @@ const CircleOfFifths: React.FC = () => {
                                </div>
                                
                                {/* Seventh Row */}
-                               <div className="flex justify-between items-center mb-0.5 pl-9">
-                                   <span className="font-bold text-indigo-300 text-sm">{chord.sevName}</span>
+                               <div className="flex justify-between items-center mb-0.5 pl-9 group" onClick={(e) => { e.stopPropagation(); playChord(chord.sevNotes.split(' ')); }}>
+                                   <span className="font-bold text-indigo-300 text-sm hover:text-white transition-colors">{chord.sevName}</span>
                                    <span className="text-xs text-indigo-200/60 font-mono tracking-tight">{chord.sevNotes}</span>
                                </div>
 
                                {/* Ninth Row */}
-                               <div className="flex justify-between items-center mb-0.5 pl-9">
-                                   <span className="font-bold text-violet-300 text-sm">{chord.ninName}</span>
+                               <div className="flex justify-between items-center mb-0.5 pl-9" onClick={(e) => { e.stopPropagation(); playChord(chord.ninNotes.split(' ')); }}>
+                                   <span className="font-bold text-violet-300 text-sm hover:text-white transition-colors">{chord.ninName}</span>
                                    <span className="text-xs text-violet-200/60 font-mono tracking-tight">{chord.ninNotes}</span>
                                </div>
 
                                {/* Eleventh Row (if exists) */}
                                {chord.eleName && (
-                                   <div className="flex justify-between items-center mb-0.5 pl-9">
-                                       <span className="font-bold text-fuchsia-300 text-sm">{chord.eleName}</span>
+                                   <div className="flex justify-between items-center mb-0.5 pl-9" onClick={(e) => { e.stopPropagation(); playChord(chord.eleNotes!.split(' ')); }}>
+                                       <span className="font-bold text-fuchsia-300 text-sm hover:text-white transition-colors">{chord.eleName}</span>
                                        <span className="text-xs text-fuchsia-200/60 font-mono tracking-tight">{chord.eleNotes}</span>
                                    </div>
                                )}
 
                                {/* Thirteenth Row (if exists) */}
                                {chord.thiName && (
-                                   <div className="flex justify-between items-center pl-9">
-                                       <span className="font-bold text-pink-300 text-sm">{chord.thiName}</span>
+                                   <div className="flex justify-between items-center pl-9" onClick={(e) => { e.stopPropagation(); playChord(chord.thiNotes!.split(' ')); }}>
+                                       <span className="font-bold text-pink-300 text-sm hover:text-white transition-colors">{chord.thiName}</span>
                                        <span className="text-xs text-pink-200/60 font-mono tracking-tight">{chord.thiNotes}</span>
                                    </div>
                                )}

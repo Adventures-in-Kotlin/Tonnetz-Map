@@ -3,8 +3,9 @@ import TonnetzGrid from './components/TonnetzGrid';
 import Sidebar from './components/Sidebar';
 import RandomChordGenerator from './components/RandomChordGenerator';
 import CircleOfFifths from './components/CircleOfFifths';
-import { CHORDS, findChordLayout } from './utils/music';
+import { CHORDS, findChordLayout, NOTES, mod } from './utils/music';
 import { ViewMode } from './types';
+import { playNote, playChord, setInstrument, InstrumentType } from './utils/audio';
 
 interface RootNodeInfo {
   lx: number;
@@ -28,6 +29,9 @@ const App: React.FC = () => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<Tab>('tonnetz');
 
+  // Audio State
+  const [instrument, setInstrumentState] = useState<InstrumentType>('Synth');
+
   // Tonnetz State
   const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(new Set());
   const [rootNode, setRootNode] = useState<RootNodeInfo | null>(null);
@@ -37,6 +41,12 @@ const App: React.FC = () => {
   
   // Track the ID of the last chord explicitly clicked or generated
   const [lastSelectedChordId, setLastSelectedChordId] = useState<string | null>(null);
+
+  // Audio Handlers
+  const handleInstrumentChange = (type: InstrumentType) => {
+    setInstrumentState(type);
+    setInstrument(type);
+  };
 
   // Tonnetz Handlers
   const handleZoomIn = useCallback(() => {
@@ -61,19 +71,30 @@ const App: React.FC = () => {
 
   const handleNoteClick = useCallback((noteIndex: number, lx: number, ly: number) => {
     setRootNode({ noteIndex, lx, ly });
+    const noteName = NOTES[noteIndex].name;
 
     if (selectedChord) {
       const intervals = CHORDS[selectedChord].intervals;
       const chordNodes = findChordLayout(lx, ly, intervals);
       const newActiveIds = new Set<string>();
-      chordNodes.forEach(node => newActiveIds.add(`${node.lx},${node.ly}`));
+      const noteNames: string[] = [];
+      
+      chordNodes.forEach(node => {
+          newActiveIds.add(`${node.lx},${node.ly}`);
+          noteNames.push(NOTES[mod(node.lx * 7 + node.ly * 4, 12)].name);
+      });
+      
       setActiveNodeIds(newActiveIds);
+      playChord(noteNames);
     } else {
       const id = `${lx},${ly}`;
       setActiveNodeIds(prev => {
         const newSet = new Set(prev);
         if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
+        else {
+            newSet.add(id);
+            playNote(noteName);
+        }
         return newSet;
       });
       setSelectedChord(null);
@@ -81,6 +102,19 @@ const App: React.FC = () => {
   }, [selectedChord]);
 
   const handleChordClick = useCallback((chordId: string) => {
+    // chordId is "M:lx,ly" or "m:lx,ly"
+    const parts = chordId.split(':');
+    const type = parts[0];
+    const coords = parts[1].split(',');
+    const lx = parseInt(coords[0]);
+    const ly = parseInt(coords[1]);
+    
+    // Determine chord notes to play
+    const rootIdx = mod(lx * 7 + ly * 4, 12);
+    const rootName = NOTES[rootIdx].name;
+    const intervals = type === 'M' ? [0, 4, 7] : [0, 3, 7];
+    const chordNotes = intervals.map(i => NOTES[mod(rootIdx + i, 12)].name);
+
     setActiveNodeIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(chordId)) {
@@ -88,6 +122,7 @@ const App: React.FC = () => {
       } else {
         newSet.add(chordId);
         setLastSelectedChordId(chordId);
+        playChord(chordNotes);
       }
       return newSet;
     });
@@ -98,9 +133,16 @@ const App: React.FC = () => {
     const intervals = CHORDS[chordType].intervals;
     const chordNodes = findChordLayout(rootNode.lx, rootNode.ly, intervals);
     const newActiveIds = new Set<string>();
-    chordNodes.forEach(node => newActiveIds.add(`${node.lx},${node.ly}`));
+    const noteNames: string[] = [];
+
+    chordNodes.forEach(node => {
+        newActiveIds.add(`${node.lx},${node.ly}`);
+        noteNames.push(NOTES[mod(node.lx * 7 + node.ly * 4, 12)].name);
+    });
+
     setActiveNodeIds(newActiveIds);
     setSelectedChord(chordType);
+    playChord(noteNames);
   }, [rootNode]);
 
   const handleTranspose = useCallback((intervalName: string) => {
@@ -123,12 +165,18 @@ const App: React.FC = () => {
     
     const newId = `${type}:${newLx},${newLy}`;
 
+    // Play transposed chord
+    const rootIdx = mod(newLx * 7 + newLy * 4, 12);
+    const intervals = type === 'M' ? [0, 4, 7] : [0, 3, 7];
+    const chordNotes = intervals.map(i => NOTES[mod(rootIdx + i, 12)].name);
+
     setActiveNodeIds(prev => {
       const newSet = new Set(prev);
       newSet.add(newId);
       return newSet;
     });
     setLastSelectedChordId(newId);
+    playChord(chordNotes);
 
   }, [lastSelectedChordId]);
 
@@ -207,6 +255,8 @@ const App: React.FC = () => {
               onViewModeChange={handleViewModeChange}
               onTranspose={handleTranspose}
               hasSelectedChord={!!lastSelectedChordId}
+              instrument={instrument}
+              onInstrumentChange={handleInstrumentChange}
             />
             <main className="flex-1 relative h-full">
               <TonnetzGrid 
@@ -225,10 +275,16 @@ const App: React.FC = () => {
             </main>
           </div>
         ) : activeTab === 'circle' ? (
-          <CircleOfFifths />
+          <CircleOfFifths 
+            instrument={instrument} 
+            onInstrumentChange={handleInstrumentChange} 
+          />
         ) : (
           <div className="h-full overflow-y-auto">
-            <RandomChordGenerator />
+            <RandomChordGenerator 
+              instrument={instrument} 
+              onInstrumentChange={handleInstrumentChange} 
+            />
           </div>
         )}
       </div>
