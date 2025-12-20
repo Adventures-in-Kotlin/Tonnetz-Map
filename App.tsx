@@ -3,6 +3,7 @@ import TonnetzGrid from './components/TonnetzGrid';
 import Sidebar from './components/Sidebar';
 import RandomChordGenerator from './components/RandomChordGenerator';
 import CircleOfFifths from './components/CircleOfFifths';
+import Fretboard from './components/Fretboard';
 import { CHORDS, findChordLayout, NOTES, mod } from './utils/music';
 import { ViewMode } from './types';
 import { playNote, playChord, setInstrument, InstrumentType } from './utils/audio';
@@ -13,7 +14,7 @@ interface RootNodeInfo {
   noteIndex: number;
 }
 
-type Tab = 'tonnetz' | 'generator' | 'circle';
+type Tab = 'tonnetz' | 'generator' | 'circle' | 'fretboard';
 
 // Offsets for intervals on the Tonnetz (dx: P5 axis, dy: M3 axis)
 const INTERVAL_OFFSETS: Record<string, {dx: number, dy: number}> = {
@@ -235,6 +236,18 @@ const App: React.FC = () => {
           >
             Generator
           </button>
+          <button
+            onClick={() => setActiveTab('fretboard')}
+            className={`
+              px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+              ${activeTab === 'fretboard' 
+                ? 'bg-slate-700 text-white shadow-sm' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }
+            `}
+          >
+            Fretboard
+          </button>
         </div>
         
         <div className="w-8"></div> {/* Spacer for balance */}
@@ -279,13 +292,18 @@ const App: React.FC = () => {
             instrument={instrument} 
             onInstrumentChange={handleInstrumentChange} 
           />
-        ) : (
+        ) : activeTab === 'generator' ? (
           <div className="h-full overflow-y-auto">
             <RandomChordGenerator 
               instrument={instrument} 
               onInstrumentChange={handleInstrumentChange} 
             />
           </div>
+        ) : (
+          <Fretboard
+            instrument={instrument}
+            onInstrumentChange={handleInstrumentChange}
+          />
         )}
       </div>
     </div>
